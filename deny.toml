@@ -1,0 +1,21 @@
+# cargo-deny configuration: RustSec advisories, license compatibility, duplicate versions and
+# registry sources of the published dependency graph. Run locally with `cargo deny check`.
+
+[graph]
+all-features = true
+# The shipped crate is what is gated; dev-dependencies are the test harness's concern.
+exclude-dev = true
+
+[advisories]
+yanked = "deny"
+
+[licenses]
+allow = ["Apache-2.0", "MIT", "BSL-1.0"]
+
+[bans]
+multiple-versions = "deny"
+wildcards = "deny"
+
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"

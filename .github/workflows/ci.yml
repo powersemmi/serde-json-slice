@@ -1,0 +1,128 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  merge_group:
+
+permissions:
+  contents: read
+
+env:
+  RUSTFLAGS: --deny warnings
+
+jobs:
+  ci-linux:
+    name: Build and test (${{ matrix.rust }}, ${{ matrix.TARGET }})
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental || false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        rust: [stable]
+        TARGET: [x86_64-unknown-linux-gnu, thumbv6m-none-eabi, thumbv7m-none-eabi, thumbv7em-none-eabihf]
+        include:
+          # MSRV: keep in sync with `rust-version` in Cargo.toml.
+          - rust: "1.95"
+            TARGET: x86_64-unknown-linux-gnu
+          - rust: nightly
+            TARGET: x86_64-unknown-linux-gnu
+            experimental: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: ${{ matrix.rust }}
+          targets: ${{ matrix.TARGET }}
+      - name: Build with no features
+        run: cargo build --target=${{ matrix.TARGET }}
+      # The `alloc` crate ships for every target here, the bare-metal ones included; a firmware
+      # that enables the feature brings its own global allocator.
+      - name: Build with alloc
+        run: cargo build --target=${{ matrix.TARGET }} --features alloc
+      - name: Test
+        if: matrix.TARGET == 'x86_64-unknown-linux-gnu'
+        run: cargo test --target=${{ matrix.TARGET }} --all-features
+
+  clippy:
+    name: Clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+          components: clippy
+      - name: Clippy with no features
+        run: cargo clippy --all-targets --no-default-features
+      - name: Clippy with all features
+        run: cargo clippy --all-targets --all-features
+
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+          components: rustfmt
+      - run: cargo fmt --all -- --check
+
+  docs:
+    name: Docs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+      - name: cargo doc
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --no-deps --all-features
+
+  deny:
+    name: Dependencies
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: EmbarkStudios/cargo-deny-action@c3bbe7e4e3f7baeee1a3dd9aec0a3b2aded580fb # v2.1.1
+        with:
+          command: check
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master
+        with:
+          toolchain: stable
+          components: llvm-tools-preview
+      - uses: taiki-e/install-action@68a389c788b2cd04016ce8c80ee23b80d2ab3d68 # v2.88.1
+        with:
+          tool: cargo-llvm-cov
+      - name: Measure coverage
+        run: cargo llvm-cov --all-features --summary-only | tee coverage.txt
+      - name: Report coverage
+        run: |
+          {
+            echo '## Coverage'
+            echo '```'
+            cat coverage.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
