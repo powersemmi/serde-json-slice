@@ -1,0 +1,8 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc fafe45a78fa1c9ea60a35db0fba5b5932ca7e5db654d4fe50594de1fe743b149 # shrinks to value = Single(2.702475e19), cut = 1
+cc c9e053da7c2c696c7a7d3babedf4c39623ca0a95e9d1e10fe80c4d01a6beb90c # shrinks to value = Numbered({0: Single(7.795736e16)})
