@@ -94,8 +94,8 @@ impl<Sink: Write> Serializer<Sink> {
         self.push(itoa::Buffer::new().format(value).as_bytes())
     }
 
-    pub(crate) fn finite_float(&mut self, value: impl ryu::Float) -> Result<(), EncodeError> {
-        self.push(ryu::Buffer::new().format_finite(value).as_bytes())
+    pub(crate) fn finite_float(&mut self, value: impl zmij::Float) -> Result<(), EncodeError> {
+        self.push(zmij::Buffer::new().format_finite(value).as_bytes())
     }
 
     pub(crate) fn string(&mut self, text: &str) -> Result<(), EncodeError> {
