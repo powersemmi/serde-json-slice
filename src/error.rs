@@ -82,7 +82,7 @@ impl ser::Error for EncodeError {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CustomMessage {
     bytes: [u8; Self::CAPACITY],
-    len: u8,
+    len: usize,
 }
 
 impl CustomMessage {
@@ -131,7 +131,7 @@ impl CustomMessage {
     /// ```
     #[must_use]
     pub fn as_str(&self) -> &str {
-        let kept = self.bytes.get(..usize::from(self.len)).unwrap_or_default();
+        let kept = self.bytes.get(..self.len).unwrap_or_default();
         // Only whole characters are ever copied in, so the kept bytes are always UTF-8.
         str::from_utf8(kept).unwrap_or_default()
     }
@@ -149,7 +149,7 @@ impl Write for Truncating<'_> {
         if self.stopped {
             return Ok(());
         }
-        let start = usize::from(self.message.len);
+        let start = self.message.len;
         let room = CustomMessage::CAPACITY - start;
         let mut end = text.len().min(room);
         while !text.is_char_boundary(end) {
@@ -157,11 +157,10 @@ impl Write for Truncating<'_> {
         }
         self.stopped = end < text.len();
         let (fits, _) = text.as_bytes().split_at(end);
-        if let Some(target) = self.message.bytes.get_mut(start..start + end) {
-            target.copy_from_slice(fits);
-            // `start + end` is at most `CAPACITY`, which fits a `u8`.
-            self.message.len = u8::try_from(start + end).unwrap_or(u8::MAX);
+        for (slot, &byte) in self.message.bytes.iter_mut().skip(start).zip(fits) {
+            *slot = byte;
         }
+        self.message.len = start + end;
         Ok(())
     }
 }
@@ -183,9 +182,11 @@ mod tests {
 
     #[test]
     fn nothing_is_kept_after_the_first_piece_that_does_not_fit() {
-        let long = repeat_n('a', 70).collect::<StackText>();
-        let message = CustomMessage::new(&format_args!("{long}-tail"));
-        assert_eq!(message.as_str().len(), 64, "{}", message.as_str());
+        // The two-byte character does not fit after 63 bytes, but the one-byte "-" after it would.
+        let mut text = repeat_n('a', 63).collect::<StackText>();
+        text.push('é');
+        let message = CustomMessage::new(&format_args!("{text}-"));
+        assert_eq!(message.as_str().len(), 63, "{}", message.as_str());
         assert!(!message.as_str().contains('-'), "{}", message.as_str());
     }
 

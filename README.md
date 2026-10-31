@@ -23,20 +23,23 @@ fn main() -> Result<(), serde_json_slice::EncodeError> {
 ## Why
 
 [`serde-json-core`] 0.7.0, the usual choice for JSON without a heap, reaches `unreachable!()` and
-panics on ordinary values: a `char`, a tuple variant such as `V(u8, u8)`, a map whose keys are not
-strings (`BTreeMap<u32, _>`), and a `Serialize` impl that returns `Error::custom`. The issue is
-[rust-embedded-community/serde-json-core#48][issue], open since 2021. On a device a panic is a
-reset, so this crate serializes those values, or returns an error where `serde_json` returns one.
+panics on ordinary values: a `char`, a tuple variant such as `V(u8, u8)`, and a `Serialize` impl
+that returns `Error::custom`. A map with integer keys (`BTreeMap<u32, _>`) comes out as `{1:2}`,
+which is not JSON. The issue is [rust-embedded-community/serde-json-core#48][issue], open since
+2021. On a device a panic is a reset, so this crate serializes those values as `serde_json` does,
+or returns an error where `serde_json` returns one.
 
 ## Guarantees
 
 - No panic. A buffer that is too small, a map key JSON cannot express and an error raised by the
   value's own `Serialize` impl each return an [`EncodeError`]. Nothing is written past the buffer.
 - No allocation. The crate is `#![no_std]` and uses neither `alloc` nor `std` by default.
-- The same bytes as `serde_json::to_vec` for every value `serde_json` serializes: a `char` as a
-  string, enums externally tagged (`{"V":[1,2]}`), integer, bool and float map keys quoted,
-  non-finite floats as `null`, and the same string escapes. The test suite checks this
-  differentially against `serde_json`, including on random values.
+- The same bytes as `serde_json::to_vec` (1.0.149 and later) for every value `serde_json`
+  serializes: a `char` as a string, enums externally tagged (`{"V":[1,2]}`), integer, bool and
+  float map keys quoted, non-finite floats as `null`, and the same string escapes. Floats go
+  through `zmij`, the formatter `serde_json` uses; releases of `serde_json` before 1.0.149 wrote
+  exponents without the sign (`1e300` where this crate writes `1e+300`). The test suite checks
+  the output differentially against `serde_json`, including on random values.
 - No `unsafe` code (`#![forbid(unsafe_code)]`).
 
 ## Writing into your own buffer
@@ -44,8 +47,9 @@ reset, so this crate serializes those values, or returns an error where `serde_j
 [`to_writer`] serializes into any [`Write`] sink, so the output lands in the caller's buffer type
 without a copy through a stack buffer. The crate implements `Write` for `&mut [u8]` (the slice
 advances past what was written) and, with the `alloc` feature, for `Vec<u8>`. A sink is a generic
-parameter, so each call is monomorphized: no `dyn` call and no allocation beyond what the sink
-itself does.
+parameter, so each call is monomorphized: no `dyn` call, no intermediate buffer, and no allocation
+beyond what the sink itself does. The `Vec<u8>` sink grows with `try_reserve`, so a failed
+allocation is an error rather than an abort.
 
 ## Features
 

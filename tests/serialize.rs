@@ -1,11 +1,12 @@
 //! The behaviours the serializer promises, one test each.
 
 use std::collections::BTreeMap;
+use std::fmt::{self, Display, Formatter};
 use std::iter::once;
 
 use serde::ser::Error as _;
 use serde::{Serialize, Serializer};
-use serde_json_slice::{EncodeError, to_slice, to_writer};
+use serde_json_slice::{EncodeError, Serializer as JsonSerializer, to_slice, to_writer};
 
 #[derive(Serialize)]
 struct Sample {
@@ -53,7 +54,9 @@ fn a_message_larger_than_the_buffer_is_a_buffer_full_error() {
         name: "a".repeat(40),
     };
     let mut small = [0u8; 16];
-    assert_eq!(to_slice(&value, &mut small), Err(EncodeError::BufferFull));
+    let err = to_slice(&value, &mut small).unwrap_err();
+    assert_eq!(err, EncodeError::BufferFull);
+    assert_eq!(err.to_string(), "the JSON output does not fit the buffer");
     let mut large = [0u8; 64];
     assert_eq!(to_slice(&value, &mut large), Ok(58));
 }
@@ -206,4 +209,56 @@ fn a_non_finite_float_key_is_an_error() {
         encode(&Map(f64::INFINITY)),
         Err(EncodeError::FloatKeyMustBeFinite)
     );
+}
+
+/// A value serialized through `collect_str`.
+struct Collected<Text>(Text);
+
+impl<Text: Display> Serialize for Collected<Text> {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.collect_str(&self.0)
+    }
+}
+
+#[test]
+fn a_collected_string_longer_than_the_buffer_is_a_buffer_full_error() {
+    let mut buf = [0u8; 8];
+    assert_eq!(
+        to_slice(&Collected("more than eight"), &mut buf),
+        Err(EncodeError::BufferFull)
+    );
+}
+
+/// A `Display` impl that fails on its own, which `core::fmt` permits.
+struct FailingDisplay;
+
+impl Display for FailingDisplay {
+    fn fmt(&self, _formatter: &mut Formatter<'_>) -> fmt::Result {
+        Err(fmt::Error)
+    }
+}
+
+#[test]
+fn a_display_impl_that_fails_is_a_custom_error() {
+    let err = encode(&Collected(FailingDisplay)).unwrap_err();
+    let EncodeError::Custom(message) = &err else {
+        panic!("expected a custom error, got {err:?}");
+    };
+    assert_eq!(
+        message.as_str(),
+        "a Display implementation returned an error"
+    );
+}
+
+#[test]
+fn the_serializer_returns_its_sink_with_the_rest_of_the_buffer() {
+    let mut buf = [0u8; 8];
+    let mut serializer = JsonSerializer::new(&mut buf[..]);
+    [1u8, 2].serialize(&mut serializer).unwrap();
+    assert_eq!(
+        serializer.into_inner().len(),
+        3,
+        "five of eight bytes are written"
+    );
+    assert_eq!(&buf[..5], b"[1,2]");
 }
