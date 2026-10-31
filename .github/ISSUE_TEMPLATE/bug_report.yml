@@ -1,0 +1,56 @@
+name: Bug report
+description: Report a problem with serde-json-slice
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug report. Please fill in the sections below so the problem can be
+        reproduced and fixed.
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: A clear description of the bug and what you expected to happen instead.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: >-
+        A self-contained snippet: the type, the value and the call. For wrong output, include what
+        `serde_json::to_vec` writes for the same value.
+      render: rust
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output
+      description: What serde-json-slice wrote or returned, and what serde_json writes.
+      render: text
+    validations:
+      required: false
+  - type: input
+    id: version
+    attributes:
+      label: serde-json-slice version
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: rustc
+    attributes:
+      label: Rust version
+      description: Output of `rustc --version`.
+      placeholder: "1.95.0"
+    validations:
+      required: true
+  - type: input
+    id: target
+    attributes:
+      label: Target and enabled features
+      placeholder: "thumbv7em-none-eabihf, no features"
+    validations:
+      required: false

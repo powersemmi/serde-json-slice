@@ -126,3 +126,23 @@ jobs:
             cat coverage.txt
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+  ci-result:
+    name: CI result
+    # The one check the `main` ruleset requires: it speaks for every job above, so a job that
+    # comes, goes or is renamed never touches the ruleset. Skipped counts as passed, anything else fails.
+    needs: [ci-linux, clippy, fmt, docs, deny, coverage]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Every job passed or was skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+        run: |
+          echo "job results: $RESULTS"
+          for result in $RESULTS; do
+            case "$result" in
+              success | skipped) ;;
+              *) exit 1 ;;
+            esac
+          done
