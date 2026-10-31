@@ -12,7 +12,7 @@ struct Reading {
     celsius: f32,
 }
 
-fn main() -> Result<(), serde_json_slice::Error> {
+fn main() -> Result<(), serde_json_slice::EncodeError> {
     let mut buf = [0u8; 64];
     let len = serde_json_slice::to_slice(&Reading { sensor: 'A', celsius: 21.5 }, &mut buf)?;
     assert_eq!(&buf[..len], br#"{"sensor":"A","celsius":21.5}"#);
@@ -31,7 +31,7 @@ reset, so this crate serializes those values, or returns an error where `serde_j
 ## Guarantees
 
 - No panic. A buffer that is too small, a map key JSON cannot express and an error raised by the
-  value's own `Serialize` impl each return an [`Error`]. Nothing is written past the buffer.
+  value's own `Serialize` impl each return an [`EncodeError`]. Nothing is written past the buffer.
 - No allocation. The crate is `#![no_std]` and uses neither `alloc` nor `std` by default.
 - The same bytes as `serde_json::to_vec` for every value `serde_json` serializes: a `char` as a
   string, enums externally tagged (`{"V":[1,2]}`), integer, bool and float map keys quoted,
@@ -67,6 +67,6 @@ any additional terms or conditions.
 [serde]: https://serde.rs
 [`serde-json-core`]: https://crates.io/crates/serde-json-core
 [issue]: https://github.com/rust-embedded-community/serde-json-core/issues/48
-[`Error`]: https://docs.rs/serde-json-slice/latest/serde_json_slice/enum.Error.html
+[`EncodeError`]: https://docs.rs/serde-json-slice/latest/serde_json_slice/enum.EncodeError.html
 [`to_writer`]: https://docs.rs/serde-json-slice/latest/serde_json_slice/fn.to_writer.html
 [`Write`]: https://docs.rs/serde-json-slice/latest/serde_json_slice/trait.Write.html
